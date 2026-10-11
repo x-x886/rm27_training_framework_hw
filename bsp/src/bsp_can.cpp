@@ -42,6 +42,19 @@ void CAN_Transmit(CAN_HandleTypeDef *hcan, uint32_t Id, uint8_t *msg, uint16_t l
         return;
     }
     // TODO: 校验标准帧 ID 和 DLC (0~8)，构造帧头并调用 HAL_CAN_AddTxMessage。
+    CAN_TxHeaderTypeDef TxHeader;
+    unit32_t TxMailbox;
+    if （Id > 0x7FF）{
+        return;
+    }
+    TxHeader.Stdid = Id;
+    TxHeader.IDE = CAN_ID_STD;
+    TxHeader.RTR = CAN_RTR_DATA;
+    if(len > 8){
+        len = 8;
+    }
+    TxHeader.DLC = len;
+    HAL_StatusTypeDef status = HAL_CAN_AddTxMessage(hcan, &TxHeader, msg, &TxMailbox);
     (void)Id;
     (void)msg;
     (void)len;
