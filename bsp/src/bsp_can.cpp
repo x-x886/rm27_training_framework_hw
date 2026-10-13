@@ -55,9 +55,50 @@ void CAN_Transmit(CAN_HandleTypeDef *hcan, uint32_t Id, uint8_t *msg, uint16_t l
     }
     TxHeader.DLC = len;
     HAL_StatusTypeDef status = HAL_CAN_AddTxMessage(hcan, &TxHeader, msg, &TxMailbox);
+    
     (void)Id;
     (void)msg;
     (void)len;
 }
 
 // TODO: 实现 CAN 接收回调，根据总线和标准帧 ID 分发电机反馈。
+typedef struct{
+	int16_t	 	speed;
+  int16_t  	torque_current;
+	int16_t   Output;
+  uint8_t  	temp;
+	int16_t 	angle;				//abs angle range:[0,8191]
+	int16_t 	last_angle;	        //abs angle range:[0,8191]
+	int32_t		round_cnt;
+	int32_t		total_angle;
+}Motor_measure_t;
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
+{
+	CAN_RxHeaderTypeDef RX_Header;	//数据帧帧头
+	uint8_t RX_BUFFER[8];	//接收存放数据帧数据的数组
+	HAL_CAN_GetRxMessage(hcan,CAN_RX_FIFO0,&RX_Header,RX_BUFFER);	
+	
+	static uint8_t i = 0;
+	if(hcan==&hcan1){		
+		i = RX_Header.StdId - Chassis_3508A;		
+		Motor_measure_fun(&Motor_measure[i], RX_BUFFER);	
+	}
+	else if(hcan==&hcan2){    
+		i = RX_Header.StdId - CAN2_3508_ID1 + 7;	
+		Motor_measure_fun(&Motor_measure[i], RX_BUFFER);	
+	}
+}
+
+void Motor_measure_fun(Motor_measure_t *ptr,uint8_t* RX_buffer)
+{
+	ptr->last_angle = ptr->angle;		
+	ptr->angle = (uint16_t)((RX_buffer)[0] << 8 | (RX_buffer)[1]); 	//转子机械角度
+	ptr->speed = (uint16_t)((RX_buffer)[2] << 8 | (RX_buffer)[3]);	//转子转速(rpm)
+	ptr->torque_current = (uint16_t)((RX_buffer)[4] << 8 | (RX_buffer)[5]);	//转矩电流
+	ptr->temp = (RX_buffer)[6];         
+	if(ptr->angle - ptr->last_angle > 4096)				
+		ptr->round_cnt --;								
+	else if(ptr->angle - ptr->last_angle < -4096)		
+		ptr->round_cnt ++;
+	ptr->total_angle = ptr->round_cnt * 8192 + ptr->angle;	
+}
