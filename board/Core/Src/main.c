@@ -17,8 +17,10 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
+#include "app_threadx.h"
 #include "main.h"
 #include "can.h"
+#include "dma.h"
 #include "i2c.h"
 #include "spi.h"
 #include "tim.h"
@@ -27,7 +29,25 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+//#include "threads.hpp"
+#include "main.h"
+#include "tx_api.h" // 必须包含这个，不然 TX_THREAD 不认识
 
+// 下面这段就是暴力告诉 C 编译器，这些东西在别的 C++ 文件里存在
+extern TX_THREAD imu_thread;
+extern uint8_t imu_thread_stack[2048];
+
+extern TX_THREAD control_thread;
+extern uint8_t control_thread_stack[2048];
+
+extern TX_THREAD alive_thread;
+extern uint8_t alive_thread_stack[1024];
+
+extern TX_SEMAPHORE imu_semaphore;
+
+void imu_thread_entry(ULONG thread_input);
+void control_thread_entry(ULONG thread_input);
+void alive_thread_entry(ULONG thread_input);
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -91,6 +111,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_CAN1_Init();
   MX_CAN2_Init();
   MX_I2C2_Init();
@@ -99,8 +120,26 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
+  // 1. 创建信号量
+tx_semaphore_create(&imu_semaphore, "IMU_Sem", 0);
 
+// 2. 创建三个线程
+tx_thread_create(&imu_thread, "IMU Thread", imu_thread_entry, 0, 
+                 imu_thread_stack, sizeof(imu_thread_stack), 
+                 10, 10, TX_NO_TIME_SLICE, TX_AUTO_START);
+
+tx_thread_create(&control_thread, "Control Thread", control_thread_entry, 0, 
+                 control_thread_stack, sizeof(control_thread_stack), 
+                 9, 9, TX_NO_TIME_SLICE, TX_AUTO_START);
+
+tx_thread_create(&alive_thread, "Alive Thread", alive_thread_entry, 0, 
+                 alive_thread_stack, sizeof(alive_thread_stack), 
+                 15, 15, TX_NO_TIME_SLICE, TX_AUTO_START);
   /* USER CODE END 2 */
+
+  MX_ThreadX_Init();
+
+  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -161,6 +200,28 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM2 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM2)
+  {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.

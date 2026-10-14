@@ -45,12 +45,20 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
+    threads/src/imuthread.cpp
+    threads/src/controlthread.cpp
+    threads/src/alivethread.cpp
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+    threads/include
+    # 把下面这两行加进去（注意路径大小写，最好去左边文件夹里确认一下）
+    Middlewares/ST/threadx/common/inc
+    Middlewares/ST/threadx/ports/cortex_m4/gnu/inc
 )
+
 
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
