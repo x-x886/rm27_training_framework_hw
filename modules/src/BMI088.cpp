@@ -115,22 +115,60 @@ namespace BMI088
     {
         // TODO: 根据 cs 拉低对应 GPIO 片选；按 SPI 写协议发送地址和数据，
         // 最后释放片选，并处理通信失败与必要的延时。
-        (void)cs;
-        (void)addr;
-        (void)data;
-        (void)len;
+        // 示例代码（注意你要引入对应的 HAL 头文件，比如 stm32f4xx_hal.h）
+        if (cs == BMI088_CS_ACC) {
+         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET); // 假设加速度计片选是 PA4
+        } else if (cs == BMI088_CS_GYRO) {
+         HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET); // 假设陀螺仪片选是 PB0
+        }
+
+        // 2. 发送写地址 (BMI088 写操作地址最高位是 0，所以直接发 addr)
+        HAL_SPI_Transmit(&hspi1, &addr, 1, 100);
+
+         // 3. 发送要写入的数据
+        HAL_SPI_Transmit(&hspi1, data, len, 100);
+        
+        if (cs == BMI088_CS_ACC) {
+         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+        } else if (cs == BMI088_CS_GYRO) {
+         HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+        }
+
     }
 
     void cBMI088::ReadReg(enum BMI088_SENSOR cs, uint8_t addr, uint8_t *data, uint8_t len)
     {
-        // TODO: 根据 cs 拉低对应 GPIO 片选；按 SPI 读协议发送地址，
-        // 丢弃加速度计返回的首个无效字节，读取 len 字节并释放片选。
-        // 未实现前清零缓冲区，避免芯片 ID 校验读取未初始化数据。
-        (void)cs;
-        (void)addr;
-        if (data != nullptr)
-            for (uint8_t i = 0; i < len; ++i) data[i] = 0;
+    
+     // 1. 拉低片选 (假设你的 SPI 句柄叫 hspi1，如果叫其他的记得替换)
+     if (cs == BMI088_CS_ACC) {
+         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET); // 加速度计拉低 PA4
+     } else if (cs == BMI088_CS_GYRO) {
+         HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET); // 陀螺仪拉低 PB0
+     }
+
+     // 2. 发送读指令 (地址最高位置1，即 | 0x80)
+     uint8_t tx_addr = addr | BMI088_SPI_READ_CODE; 
+     HAL_SPI_Transmit(&hspi1, &tx_addr, 1, 100);
+
+     // 3. 加速度计特有的“丢哑元字节”
+     if (cs == BMI088_CS_ACC) {
+         uint8_t dummy;
+         HAL_SPI_Receive(&hspi1, &dummy, 1, 100); // 读一个字节并丢弃
+     }
+
+     // 4. 接收有效数据
+     HAL_SPI_Receive(&hspi1, data, len, 100);
+
+     // 5. 拉高片选
+     if (cs == BMI088_CS_ACC) {
+         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET); // 加速度计拉高 PA4
+     } else if (cs == BMI088_CS_GYRO) {
+         HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET); // 陀螺仪拉高 PB0
+     }
+
     }
+    
+    
 
     void cBMI088::Config()
     {
